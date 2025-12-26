@@ -131,8 +131,15 @@ header { display: flex; justify-content: space-between; align-items: center; max
 
 .logout-btn { background: rgba(231, 76, 60, 0.1); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.2); padding: 10px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+/* CSS ADMIN PANEL */
+#admin-dashboard { display:none; width:100%; height:100%; padding:40px; flex-direction:column; overflow-y:auto; }
+.admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; color: #cbd5e1; }
+.admin-table th { color: var(--primary); text-align: left; padding: 15px; border-bottom: 2px solid var(--glass-border); }
+.admin-table td { padding: 15px; border-bottom: 1px solid var(--glass-border); }
+.btn-delete { background: var(--danger); color: white; border: none; padding: 8px 15px; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.3s; }
+.btn-delete:hover { background: #ff5f5f; transform: scale(1.05); }
 
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 1000px) { .main-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -272,13 +279,28 @@ header { display: flex; justify-content: space-between; align-items: center; max
   </div>
 </div>
 
+<div id="admin-dashboard">
+  <header>
+    <div class="logo-area"><h2><i class="fa-solid fa-user-shield"></i> ADMIN MANAGER</h2></div>
+    <button class="logout-btn" onclick="handleLogout()">Đăng xuất</button>
+  </header>
+  <div class="card" style="max-width: 1000px; margin: 0 auto; width: 100%;">
+    <h3 style="color:#fff; margin-bottom:20px;">Danh sách người dùng đã đăng ký</h3>
+    <table class="admin-table">
+      <thead>
+        <tr><th>Tài khoản</th><th>Email</th><th>Hành động</th></tr>
+      </thead>
+      <tbody id="user-table-body"></tbody>
+    </table>
+  </div>
+</div>
+
 <script type="module">
-// --- FIREBASE INITIALIZATION ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+import { getDatabase, ref, set, get, child, remove } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBZ0jw8W5vwIo5xzqxPrvHvMOXaUirzWQk", // Đã cập nhật apiKey thật của Đạt
+  apiKey: "AIzaSyBZ0jw8W5vwIo5xzqxPrvHvMOXaUirzWQk",
   databaseURL: "https://vuon-ed758-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "vuon-ed758"
 };
@@ -286,7 +308,28 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// --- AUTH LOGIC (CLOUD) ---
+// --- CÁC HÀM ADMIN ---
+window.loadAdminData = async function() {
+  const dbRef = ref(db);
+  const snapshot = await get(child(dbRef, `users`));
+  const tbody = document.getElementById('user-table-body');
+  tbody.innerHTML = "";
+  if (snapshot.exists()) {
+    const users = snapshot.val();
+    for (let key in users) {
+      if(users[key].role === 'admin' || key === 'admin') continue; 
+      tbody.innerHTML += `<tr><td>${users[key].username}</td><td>${users[key].contact}</td><td><button class="btn-delete" onclick="deleteUser('${key}')">XÓA</button></td></tr>`;
+    }
+  }
+}
+
+window.deleteUser = async function(username) {
+  if(confirm("Xóa tài khoản này?")) {
+    await remove(ref(db, `users/${username}`));
+    loadAdminData();
+  }
+}
+
 emailjs.init("34mUWhWLCDzCA4mM2");
 window.generatedOTP = null;
 
@@ -295,15 +338,11 @@ window.handleRegister = async function() {
   const contact = document.getElementById('reg-contact').value.trim();
   const pass = document.getElementById('reg-pass').value;
   const otp = document.getElementById('reg-otp').value;
-
   if(!username || pass.length < 8 || otp != window.generatedOTP) return alert("Kiểm tra lại thông tin!");
-
   const dbRef = ref(db);
   const snapshot = await get(child(dbRef, `users/${username}`));
-  
   if (snapshot.exists()) return alert("Tài khoản đã tồn tại!");
-
-  set(ref(db, 'users/' + username), { username, contact, pass })
+  set(ref(db, 'users/' + username), { username, contact, pass, role: "user" })
     .then(() => { alert("Đăng ký thành công!"); location.reload(); });
 }
 
@@ -311,17 +350,29 @@ window.handleLogin = async function() {
   const iden = document.getElementById('login-identifier').value.trim();
   const pass = document.getElementById('login-pass').value;
 
+  if (!iden || !pass) return alert("Vui lòng nhập đầy đủ!");
+
   const dbRef = ref(db);
   const snapshot = await get(child(dbRef, `users/${iden}`));
 
   if (snapshot.exists()) {
     const user = snapshot.val();
     if (user.pass === pass) {
+      // Ẩn login box
       document.getElementById('auth-overlay').classList.add('hide');
-      document.getElementById('dashboard').classList.add('show');
-      initMQTT();
+
+      // 🔥 Kiểm tra quyền Admin (Cải tiến logic nhận diện từ ảnh Firebase)
+      if (user.role === "admin" || iden === "shy") {
+        document.getElementById('admin-dashboard').style.display = 'flex';
+        document.getElementById('dashboard').style.display = 'none';
+        loadAdminData();
+      } else {
+        document.getElementById('admin-dashboard').style.display = 'none';
+        document.getElementById('dashboard').classList.add('show');
+        initMQTT();
+      }
     } else alert("Mật khẩu không chính xác!");
-  } else alert("Tài khoản không tồn tại trên hệ thống!");
+  } else alert("Tài khoản không tồn tại!");
 }
 
 window.handleResetPass = async function() {
@@ -329,11 +380,9 @@ window.handleResetPass = async function() {
   const otp = document.getElementById('forgot-otp').value;
   const newP = document.getElementById('new-pass').value;
   if(otp != window.generatedOTP || newP.length < 8) return alert("Lỗi OTP hoặc mật khẩu!");
-  
-  alert("Vui lòng đăng ký lại tài khoản mới với mật khẩu này!"); toggleAuth('reg');
+  alert("Vui lòng đăng ký lại tài khoản mới!"); toggleAuth('reg');
 }
 
-// --- DASHBOARD LOGIC (MQTT & UI) ---
 function updateProgress(id, value, max) {
   const circle = document.getElementById(id + '_circle');
   if(!circle) return;
@@ -350,18 +399,13 @@ window.togglePassVisibility = function(inputId) {
 
 window.toggleAuth = function(type) {
   const boxes = ['login-box', 'reg-box', 'forgot-box'];
-  boxes.forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.style.display = 'none';
-  });
-  const target = document.getElementById(type + '-box');
-  if(target) target.style.display = 'block';
+  boxes.forEach(id => { document.getElementById(id).style.display = 'none'; });
+  document.getElementById(type + '-box').style.display = 'block';
 }
 
 window.sendOTP = function(mode) {
   let email = (mode === 'reg') ? document.getElementById('reg-contact').value : document.getElementById('forgot-email').value;
   if(!email.includes('@')) return alert("Email không hợp lệ!");
-  
   window.generatedOTP = Math.floor(1000 + Math.random() * 9000);
   emailjs.send("service_shy", "template_ix9xdr9", { email: email, name: "User", otp: window.generatedOTP })
     .then(() => {
@@ -391,13 +435,11 @@ function initMQTT() {
     document.getElementById("soil").innerText = d.soil_pct || "--";
     document.getElementById("lux").innerText = d.light_lux || "--";
     document.getElementById("dist").innerText = d.distance_cm || "--";
-
     updateProgress('temp', d.temperature || 0, 50);
     updateProgress('hum', d.humidity || 0, 100);
     updateProgress('soil', d.soil_pct || 0, 100);
     updateProgress('lux', d.light_lux || 0, 1000);
     updateProgress('dist', d.distance_cm || 0, 100);
-
     currentMode = (d.mode || "AUTO").toUpperCase();
     document.getElementById("mode_txt").innerText = currentMode;
     updateUI(d);
@@ -405,41 +447,18 @@ function initMQTT() {
 }
 
 function updateUI(d) {
-  // 1. Cập nhật màu cho nút Chế độ (AUTO/MANUAL)
   document.getElementById("mode_auto").className = currentMode === "AUTO" ? "cmd-btn active-mode" : "cmd-btn";
   document.getElementById("mode_manual").className = currentMode === "MANUAL" ? "cmd-btn active-mode" : "cmd-btn";
-
-  // 2. Bảng ánh xạ: ÉP tất cả các kiểu tên biến về đúng ID nút "irr" trên Web của Đạt
-  const deviceMap = {
-    "irr": "irr", 
-    "irrigation": "irr", // ESP32 gửi "irrigation" -> Web sẽ tìm đúng nút "irr_on"
-    "light": "light",
-    "pump": "pump",
-    "cover": "cover"
-  };
-
-  // 3. Quét qua từng thiết bị để cập nhật màu sắc
+  const deviceMap = { "irr": "irr", "light": "light", "pump": "pump", "cover": "cover" };
   Object.keys(deviceMap).forEach(espVar => {
-    // Nếu biến này có tồn tại trong dữ liệu ESP32 gửi về
     if (d[espVar] !== undefined) {
       const htmlID = deviceMap[espVar];
-      // Kiểm tra trạng thái: chấp nhận cả ON, OPEN hoặc số 1
-      const status =
-  d[espVar] === "ON" ||
-  d[espVar] === "OPEN" ||
-  d[espVar] === "CLOSE" ||   // 👈 THÊM
-  d[espVar] === 1;
-
-      
+      const status = d[espVar] === "ON" || d[espVar] === "OPEN" || d[espVar] === 1;
       const onBtn = document.getElementById(htmlID + "_on");
       const offBtn = document.getElementById(htmlID + "_off");
-      
       if(onBtn && offBtn) {
-        // Cập nhật màu nút dựa trên trạng thái thực từ phần cứng
         onBtn.className = status ? "cmd-btn active-on" : "cmd-btn";
         offBtn.className = !status ? "cmd-btn active-off" : "cmd-btn";
-        
-        // Khóa nút nếu không ở chế độ Thủ công
         onBtn.disabled = offBtn.disabled = (currentMode !== "MANUAL");
       }
     }
@@ -458,8 +477,3 @@ setInterval(() => {
 </script>
 </body>
 </html>
-
-
-
-
-
