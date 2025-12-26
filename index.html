@@ -424,7 +424,12 @@ function updateUI(d) {
     if (d[espVar] !== undefined) {
       const htmlID = deviceMap[espVar];
       // Kiểm tra trạng thái: chấp nhận cả ON, OPEN hoặc số 1
-      const status = (d[espVar] === "ON" || d[espVar] === "OPEN" || d[espVar] === 1);
+      const status =
+  d[espVar] === "ON" ||
+  d[espVar] === "OPEN" ||
+  d[espVar] === "CLOSE" ||   // 👈 THÊM
+  d[espVar] === 1;
+
       
       const onBtn = document.getElementById(htmlID + "_on");
       const offBtn = document.getElementById(htmlID + "_off");
@@ -453,6 +458,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
