@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMART GARDEN PRO</title>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+:root {
+  --primary: #2ecc71;
+  --secondary: #3498db;
+  --danger: #e74c3c;
+  --warning: #f1c40f;
+  --bg-dark: #0f172a;
+  --card-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --neon-glow: 0 0 20px rgba(46, 204, 113, 0.5);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  height: 100vh; width: 100vw;
+  background: radial-gradient(circle at top right, #1e293b, #0f172a);
+  background-image: linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.8)), url('https://hoanghamobile.com/tin-tuc/wp-content/uploads/2024/07/anh-cay-xanh-20.jpg');
+  background-size: cover; background-position: center;
+  color: #f8fafc; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* =========================================
+   PHẦN THAY ĐỔI: GIAO DIỆN AUTH SIÊU ĐẸP
+   ========================================= */
+#auth-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(15px); background: rgba(0,0,0,0.5);
+}
+#auth-overlay.hide { opacity: 0; pointer-events: none; transform: scale(1.05); transition: 0.6s all ease-in-out; }
+
+.auth-card {
+  background: rgba(15, 23, 42, 0.95);
+  padding: 45px; border-radius: 30px;
+  border: 2px solid var(--primary);
+  box-shadow: var(--neon-glow);
+  width: 100%; max-width: 440px; text-align: center;
+  animation: authSlideUp 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes authSlideUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.auth-card i.auth-icon { font-size: 50px; color: var(--primary); margin-bottom: 15px; filter: drop-shadow(0 0 10px var(--primary)); }
+.auth-card h1 { font-size: 32px; font-weight: 800; margin-bottom: 5px; color: #fff; letter-spacing: -0.5px; }
+.auth-card h2 { font-size: 14px; color: #94a3b8; margin-bottom: 30px; font-weight: 400; }
+
+.input-group { display: flex; flex-direction: column; gap: 20px; margin-bottom: 25px; }
+.input-wrapper { position: relative; width: 100%; }
+.input-wrapper i.main-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--primary); font-size: 18px; transition: 0.3s; }
+.input-wrapper .toggle-password { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); color: #64748b; cursor: pointer; transition: 0.2s; }
+.input-wrapper .toggle-password:hover { color: #fff; }
+
+.input-group input {
+  width: 100%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1);
+  padding: 15px 50px; border-radius: 16px; color: #fff; font-size: 15px;
+  outline: none; transition: 0.4s;
+}
+.input-group input:focus { border-color: var(--primary); background: rgba(255, 255, 255, 0.08); box-shadow: var(--neon-glow); }
+.input-group input:focus + i.main-icon { color: #fff; transform: translateY(-50%) scale(1.1); }
+
+.forgot-link { display: block; text-align: right; font-size: 12px; color: var(--secondary); cursor: pointer; margin: -10px 5px 20px 0; font-weight: 600; transition: 0.3s; }
+.forgot-link:hover { color: var(--primary); }
+
+.auth-btn {
+  width: 100%; padding: 16px; border: none; border-radius: 16px;
+  font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.3s;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.btn-primary { background: var(--primary); color: #000; box-shadow: var(--neon-glow); }
+.btn-primary:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(46, 204, 113, 0.4); }
+.btn-secondary { background: transparent; border: 1px solid var(--primary); color: #fff; margin-bottom: 10px; }
+
+.switch-text { margin-top: 25px; font-size: 13px; color: #94a3b8; }
+.switch-text span { color: var(--primary); cursor: pointer; font-weight: 800; border-bottom: 1px dashed var(--primary); }
+
+/* =========================================
+   DASHBOARD GIỮ NGUYÊN (CHỈ THÊM ĐÁM MÂY)
+   ========================================= */
+#dashboard { width: 100%; height: 100%; padding: 40px; display: none; flex-direction: column; overflow-y: auto; }
+#dashboard.show { display: flex; animation: fadeIn 0.8s ease; }
+
+header { display: flex; justify-content: space-between; align-items: center; max-width: 1300px; margin: 0 auto 40px; width: 100%; }
+.logo-area h2 { font-size: 26px; font-weight: 800; display: flex; align-items: center; gap: 12px; }
+.logo-area i { color: var(--primary); font-size: 32px; }
+
+.header-info { display: flex; align-items: center; gap: 20px; }
+.time-box { text-align: right; }
+#live-clock { font-size: 22px; font-weight: 800; color: #fff; display: block; }
+#live-date { font-size: 13px; color: #94a3b8; }
+.mode-badge { background: #1e293b; padding: 10px 20px; border-radius: 14px; border: 1px solid var(--secondary); color: var(--secondary); font-weight: 700; font-size: 14px; }
+
+.main-grid { display: grid; max-width: 1300px; margin: 0 auto; grid-template-columns: 1.8fr 1.2fr; gap: 30px; width: 100%; }
+.sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+
+.card { background: var(--card-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 28px; padding: 28px; transition: 0.3s ease; text-align: center; }
+.card:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-5px); }
+.card h3 { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
+
+/* Progress Circle Styles */
+.circle-container { position: relative; width: 120px; height: 120px; margin: 0 auto 15px; }
+.circle-container svg { transform: rotate(-90deg); width: 120px; height: 120px; }
+.circle-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 10; }
+.circle-progress { fill: none; stroke-width: 10; stroke-linecap: round; stroke-dasharray: 345.5; stroke-dashoffset: 345.5; transition: stroke-dashoffset 1s ease; }
+.circle-value { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 22px; font-weight: 800; color: #fff; }
+
+.temp-stroke { stroke: #e74c3c; filter: drop-shadow(0 0 5px #e74c3c); }
+.hum-stroke { stroke: #3498db; filter: drop-shadow(0 0 5px #3498db); }
+.soil-stroke { stroke: #2ecc71; filter: drop-shadow(0 0 5px #2ecc71); }
+.lux-stroke { stroke: #f1c40f; filter: drop-shadow(0 0 5px #f1c40f); }
+.dist-stroke { stroke: #9b59b6; filter: drop-shadow(0 0 5px #9b59b6); }
+
+/* Control Buttons */
+.control-group { margin-bottom: 25px; text-align: left; }
+.label-title { font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 12px; text-transform: uppercase; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cmd-btn { padding: 14px; border-radius: 16px; border: 1px solid var(--glass-border); background: rgba(15, 23, 42, 0.5); color: #94a3b8; font-weight: 700; cursor: pointer; transition: 0.3s; }
+.cmd-btn.active-on { background: var(--primary); color: #fff; box-shadow: 0 0 20px rgba(46, 204, 113, 0.4); border-color: transparent; }
+.cmd-btn.active-off { background: var(--danger); color: #fff; box-shadow: 0 0 20px rgba(231, 76, 60, 0.4); border-color: transparent; }
+.cmd-btn.active-mode { background: var(--secondary); color: #fff; box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); border-color: transparent; }
+.cmd-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+
+.logout-btn { background: rgba(231, 76, 60, 0.1); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.2); padding: 10px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 1000px) { .main-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+
+<body>
+
+<div id="auth-overlay">
+  <div class="auth-card" id="login-box">
+    <i class="fa-solid fa-leaf auth-icon"></i>
+    <h1>SMART GARDEN</h1>
+    <h2>Hệ thống điều khiển chuyên nghiệp</h2>
+    <div class="input-group">
+      <div class="input-wrapper">
+        <i class="fas fa-id-card main-icon"></i>
+        <input type="text" id="login-identifier" placeholder="Tên đăng nhập hoặc Email">
+      </div>
+      <div class="input-wrapper">
+        <i class="fas fa-lock main-icon"></i>
+        <input type="password" id="login-pass" placeholder="Mật khẩu hệ thống">
+        <i class="fas fa-eye toggle-password" onclick="togglePassVisibility('login-pass')"></i>
+      </div>
+    </div>
+    <span class="forgot-link" onclick="toggleAuth('forgot')">Bạn quên mật khẩu?</span>
+    <button class="auth-btn btn-primary" onclick="handleLogin()">Vào hệ thống</button>
+    <p class="switch-text">Thành viên mới? <span onclick="toggleAuth('reg')">Đăng ký tài khoản</span></p>
+  </div>
+
+  <div class="auth-card" id="reg-box" style="display: none;">
+    <i class="fa-solid fa-user-plus auth-icon"></i>
+    <h1>ĐĂNG KÝ</h1>
+    <h2>Khởi tạo quyền truy cập mới</h2>
+    <div class="input-group">
+      <div class="input-wrapper">
+        <i class="fas fa-user-circle main-icon"></i>
+        <input type="text" id="reg-username" placeholder="Tên đăng nhập (viết liền)">
+      </div>
+      <div class="input-wrapper">
+        <i class="fas fa-envelope main-icon"></i>
+        <input type="email" id="reg-contact" placeholder="Email nhận mã OTP">
+      </div>
+      <div class="input-wrapper">
+        <i class="fas fa-lock main-icon"></i>
+        <input type="password" id="reg-pass" placeholder="Mật khẩu (8+ ký tự)">
+        <i class="fas fa-eye toggle-password" onclick="togglePassVisibility('reg-pass')"></i>
+      </div>
+      <div id="otp-section" style="display: none; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+        <input type="text" id="reg-otp" placeholder="NHẬP MÃ 4 SỐ" maxlength="4" style="text-align: center; letter-spacing: 12px; font-weight: 800; border-color: var(--primary);">
+      </div>
+    </div>
+    <button class="auth-btn btn-secondary" id="btn-send-otp" onclick="sendOTP('reg')">Gửi mã xác thực</button>
+    <button class="auth-btn btn-primary" id="btn-reg-main" onclick="handleRegister()" style="margin-top: 10px;">Hoàn thành đăng ký</button>
+    <p class="switch-text">Đã có tài khoản? <span onclick="toggleAuth('login')">Đăng nhập ngay</span></p>
+  </div>
+
+  <div class="auth-card" id="forgot-box" style="display: none;">
+    <i class="fa-solid fa-shield-halved auth-icon" style="color: var(--secondary);"></i>
+    <h1>KHÔI PHỤC</h1>
+    <h2>Lấy lại mật khẩu qua Email</h2>
+    <div class="input-group">
+      <div class="input-wrapper">
+        <i class="fas fa-envelope main-icon"></i>
+        <input type="email" id="forgot-email" placeholder="Nhập Email đã đăng ký">
+      </div>
+      <div id="forgot-otp-section" style="display:none; padding-top:10px;">
+        <input type="text" id="forgot-otp" placeholder="OTP" maxlength="4" style="text-align:center; letter-spacing:10px; margin-bottom:15px;">
+        <div class="input-wrapper">
+          <i class="fas fa-lock main-icon"></i>
+          <input type="password" id="new-pass" placeholder="Mật khẩu mới">
+        </div>
+      </div>
+    </div>
+    <button class="auth-btn btn-secondary" id="btn-forgot-otp" onclick="sendOTP('forgot')">Gửi mã đặt lại</button>
+    <button class="auth-btn btn-primary" id="btn-reset-pass" style="display:none;" onclick="handleResetPass()">Cập nhật mật khẩu</button>
+    <p class="switch-text"><span onclick="toggleAuth('login')">Hủy và quay lại</span></p>
+  </div>
+</div>
+
+<div id="dashboard">
+  <header>
+    <div class="logo-area"><h2><i class="fa-solid fa-leaf"></i> SMART GARDEN PRO</h2></div>
+    <div class="header-info">
+      <div class="time-box"><span id="live-clock">00:00:00</span><span id="live-date">...</span></div>
+      <div class="mode-badge">CHẾ ĐỘ: <span id="mode_txt">AUTO</span></div>
+      <button class="logout-btn" onclick="handleLogout()">Đăng xuất</button>
+    </div>
+  </header>
+
+  <div class="main-grid">
+    <div class="sensor-grid">
+      <div class="card">
+        <h3>Nhiệt độ</h3>
+        <div class="circle-container">
+          <svg><circle class="circle-bg" cx="60" cy="60" r="55"/><circle id="temp_circle" class="circle-progress temp-stroke" cx="60" cy="60" r="55"/></svg>
+          <div class="circle-value"><i class="fa-solid fa-temperature-three-quarters" style="font-size:12px; color:#e74c3c"></i> <span id="temp">--</span>°C</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Độ ẩm khí</h3>
+        <div class="circle-container">
+          <svg><circle class="circle-bg" cx="60" cy="60" r="55"/><circle id="hum_circle" class="circle-progress hum-stroke" cx="60" cy="60" r="55"/></svg>
+          <div class="circle-value"><i class="fa-solid fa-cloud" style="font-size:12px; color:#3498db"></i> <span id="hum">--</span>%</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Độ ẩm đất</h3>
+        <div class="circle-container">
+          <svg><circle class="circle-bg" cx="60" cy="60" r="55"/><circle id="soil_circle" class="circle-progress soil-stroke" cx="60" cy="60" r="55"/></svg>
+          <div class="circle-value"><i class="fa-solid fa-seedling" style="font-size:12px; color:#2ecc71"></i> <span id="soil">--</span>%</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Ánh sáng</h3>
+        <div class="circle-container">
+          <svg><circle class="circle-bg" cx="60" cy="60" r="55"/><circle id="lux_circle" class="circle-progress lux-stroke" cx="60" cy="60" r="55"/></svg>
+          <div class="circle-value"><i class="fa-solid fa-sun" style="font-size:12px; color:#f1c40f"></i> <span id="lux">--</span>lx</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Mực nước</h3>
+        <div class="circle-container">
+          <svg><circle class="circle-bg" cx="60" cy="60" r="55"/><circle id="dist_circle" class="circle-progress dist-stroke" cx="60" cy="60" r="55"/></svg>
+          <div class="circle-value"><i class="fa-solid fa-water" style="font-size:12px; color:#9b59b6"></i> <span id="dist">--</span>cm</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#fff; font-size: 18px; margin-bottom: 25px;"><i class="fa-solid fa-sliders" style="margin-right:10px; color:var(--secondary);"></i> Bảng điều khiển</h3>
+      <div class="control-group"><p class="label-title">Vận hành</p><div class="btn-row"><button class="cmd-btn" id="mode_auto" onclick="handleMode('MODE_AUTO')">TỰ ĐỘNG</button><button class="cmd-btn" id="mode_manual" onclick="handleMode('MODE_MANUAL')">THỦ CÔNG</button></div></div>
+      <div class="control-group"><p class="label-title">Hệ thống tưới & Bơm</p><div class="btn-row"><button class="cmd-btn" id="irr_on" onclick="handleBtn('IRR_ON')">BẬT TƯỚI</button><button class="cmd-btn" id="pump_on" onclick="handleBtn('PUMP_ON')">BẬT BƠM</button></div><div class="btn-row" style="margin-top:10px"><button class="cmd-btn" id="irr_off" onclick="handleBtn('IRR_OFF')">TẮT TƯỚI</button><button class="cmd-btn" id="pump_off" onclick="handleBtn('PUMP_OFF')">TẮT BƠM</button></div></div>
+      <div class="control-group"><p class="label-title">Thiết bị phụ trợ</p><div class="btn-row"><button class="cmd-btn" id="light_on" onclick="handleBtn('LIGHT_ON')">BẬT ĐÈN</button><button class="cmd-btn" id="cover_on" onclick="handleBtn('COVER_OPEN')">MỞ MÁI</button></div><div class="btn-row" style="margin-top:10px"><button class="cmd-btn" id="light_off" onclick="handleBtn('LIGHT_OFF')">TẮT ĐÈN</button><button class="cmd-btn" id="cover_off" onclick="handleBtn('COVER_CLOSE')">ĐÓNG MÁI</button></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- LOGIC GIỮ NGUYÊN 100% ---
+emailjs.init("34mUWhWLCDzCA4mM2");
+let generatedOTP = null;
+
+function updateProgress(id, value, max) {
+  const circle = document.getElementById(id + '_circle');
+  if(!circle) return;
+  const radius = circle.r.baseVal.value;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (Math.min(value, max) / max) * circumference;
+  circle.style.strokeDashoffset = offset;
+}
+
+function togglePassVisibility(inputId) {
+  const input = document.getElementById(inputId);
+  input.type = input.type === "password" ? "text" : "password";
+}
+
+function toggleAuth(type) {
+  ['login-box', 'reg-box', 'forgot-box'].forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById(type + '-box').style.display = 'block';
+}
+
+function sendOTP(mode) {
+  let email, name;
+  if(mode === 'reg') {
+    email = document.getElementById('reg-contact').value;
+    name = document.getElementById('reg-username').value;
+    if(!email.includes('@')) return alert("Email không hợp lệ!");
+  } else {
+    email = document.getElementById('forgot-email').value;
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    if(!users.find(u => u.contact === email)) return alert("Email chưa đăng ký!");
+  }
+  generatedOTP = Math.floor(1000 + Math.random() * 9000);
+  emailjs.send("service_shy", "template_ix9xdr9", { email: email, name: "User", otp: generatedOTP })
+    .then(() => {
+      alert("Mã OTP đã được gửi!");
+      if(mode === 'reg') document.getElementById('otp-section').style.display = 'block';
+      else {
+        document.getElementById('forgot-otp-section').style.display = 'block';
+        document.getElementById('btn-forgot-otp').style.display = 'none';
+        document.getElementById('btn-reset-pass').style.display = 'block';
+      }
+    });
+}
+
+function handleRegister() {
+  const username = document.getElementById('reg-username').value.trim();
+  const contact = document.getElementById('reg-contact').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const otp = document.getElementById('reg-otp').value;
+  if(!username || pass.length < 8 || otp != generatedOTP) return alert("Kiểm tra lại thông tin!");
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  if(users.find(u => u.username === username || u.contact === contact)) return alert("Tài khoản đã tồn tại!");
+  users.push({ username, contact, pass });
+  localStorage.setItem('users', JSON.stringify(users));
+  alert("Đăng ký thành công!"); location.reload();
+}
+
+function handleLogin() {
+  const iden = document.getElementById('login-identifier').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const found = users.find(u => (u.username === iden || u.contact === iden) && u.pass === pass);
+  if(found) {
+    document.getElementById('auth-overlay').classList.add('hide');
+    document.getElementById('dashboard').classList.add('show');
+    initMQTT();
+  } else alert("Thông tin đăng nhập sai!");
+}
+
+function handleResetPass() {
+  const email = document.getElementById('forgot-email').value;
+  const otp = document.getElementById('forgot-otp').value;
+  const newP = document.getElementById('new-pass').value;
+  if(otp != generatedOTP || newP.length < 8) return alert("Lỗi OTP hoặc mật khẩu!");
+  let users = JSON.parse(localStorage.getItem('users') || '[]');
+  let idx = users.findIndex(u => u.contact === email);
+  users[idx].pass = newP;
+  localStorage.setItem('users', JSON.stringify(users));
+  alert("Cập nhật mật khẩu thành công!"); toggleAuth('login');
+}
+
+function handleLogout() { location.reload(); }
+
+const MQTT_URL = "wss://8e78060839b64ff580f16575f29219a9.s1.eu.hivemq.cloud:8884/mqtt";
+const mqtt_opt = { clientId: "web_" + Math.random().toString(16).slice(2), username: "esp_garden_web", password: "P@ss123123" };
+let client, currentMode = "AUTO";
+
+function initMQTT() {
+  client = mqtt.connect(MQTT_URL, mqtt_opt);
+  client.on("connect", () => client.subscribe("esp_garden/telemetry"));
+  client.on("message", (t, m) => {
+    const d = JSON.parse(m.toString());
+    document.getElementById("temp").innerText = d.temperature || "--";
+    document.getElementById("hum").innerText = d.humidity || "--";
+    document.getElementById("soil").innerText = d.soil_pct || "--";
+    document.getElementById("lux").innerText = d.light_lux || "--";
+    document.getElementById("dist").innerText = d.distance_cm || "--";
+
+    updateProgress('temp', d.temperature || 0, 50);
+    updateProgress('hum', d.humidity || 0, 100);
+    updateProgress('soil', d.soil_pct || 0, 100);
+    updateProgress('lux', d.light_lux || 0, 1000);
+    updateProgress('dist', d.distance_cm || 0, 100);
+
+    currentMode = (d.mode || "AUTO").toUpperCase();
+    document.getElementById("mode_txt").innerText = currentMode;
+    updateUI(d);
+  });
+}
+
+function updateUI(d) {
+  document.getElementById("mode_auto").className = currentMode === "AUTO" ? "cmd-btn active-mode" : "cmd-btn";
+  document.getElementById("mode_manual").className = currentMode === "MANUAL" ? "cmd-btn active-mode" : "cmd-btn";
+  ["irr", "light", "pump", "cover"].forEach(dev => {
+    const status = d[dev] === "ON" || d[dev] === "OPEN";
+    if(document.getElementById(dev + "_on")) {
+      document.getElementById(dev + "_on").className = status ? "cmd-btn active-on" : "cmd-btn";
+      document.getElementById(dev + "_off").className = !status ? "cmd-btn active-off" : "cmd-btn";
+      document.getElementById(dev + "_on").disabled = document.getElementById(dev + "_off").disabled = (currentMode !== "MANUAL");
+    }
+  });
+}
+
+function handleMode(cmd) { client.publish("esp_garden/cmd", cmd); }
+function handleBtn(cmd) { if(currentMode === "MANUAL") client.publish("esp_garden/cmd", cmd); }
+
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('live-clock').innerText = now.toLocaleTimeString('vi-VN');
+  document.getElementById('live-date').innerText = now.toLocaleDateString('vi-VN', {weekday:'long', day:'2-digit', month:'2-digit', year:'numeric'});
+}, 1000);
+</script>
+</body>
+</html>
