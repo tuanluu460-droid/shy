@@ -278,7 +278,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase
 import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSy...", // Tuấn Anh thay apiKey của bạn vào đây
+  apiKey: "AIzaSyBZ0jw8W5vwIo5xzqxPrvHvMOXaUirzWQk", // Đã cập nhật apiKey thật của Đạt
   databaseURL: "https://vuon-ed758-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "vuon-ed758"
 };
@@ -349,8 +349,13 @@ window.togglePassVisibility = function(inputId) {
 }
 
 window.toggleAuth = function(type) {
-  ['login-box', 'reg-box', 'forgot-box'].forEach(id => document.getElementById(id).style.display = 'none');
-  document.getElementById(type + '-box').style.display = 'block';
+  const boxes = ['login-box', 'reg-box', 'forgot-box'];
+  boxes.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+  const target = document.getElementById(type + '-box');
+  if(target) target.style.display = 'block';
 }
 
 window.sendOTP = function(mode) {
