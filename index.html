@@ -405,21 +405,26 @@ function initMQTT() {
 }
 
 function updateUI(d) {
-  document.getElementById("mode_auto").className = currentMode === "AUTO" ? "cmd-btn active-mode" : "cmd-btn";
-  document.getElementById("mode_manual").className = currentMode === "MANUAL" ? "cmd-btn active-mode" : "cmd-btn";
+  document.getElementById("mode_auto").className = currentMode === "AUTO" ? "cmd-btn active-mode" : "cmd-btn";
+  document.getElementById("mode_manual").className = currentMode === "MANUAL" ? "cmd-btn active-mode" : "cmd-btn";
 
-  // SỬA TẠI ĐÂY: Đổi "irr" thành "irrigation" cho đúng với code ESP32
-  ["irrigation", "light", "pump", "cover"].forEach(dev => {
-    const status = d[dev] === "ON" || d[dev] === "OPEN";
+  // Danh sách các biến từ ESP32 gửi về
+  const devices = {
+    "irrigation": "irr", // ESP32 gửi "irrigation" -> Web tìm ID nút "irr"
+    "light": "light",
+    "pump": "pump",
+    "cover": "cover"
+  };
+
+  Object.keys(devices).forEach(espVar => {
+    const htmlID = devices[espVar];
+    const status = d[espVar] === "ON" || d[espVar] === "OPEN";
     
-    // Đạt cũng cần sửa ID của nút trong HTML từ "irr_on" thành "irrigation_on" 
-    // HOẶC sửa logic mapping ở đây:
-    let btnPrefix = (dev === "irrigation") ? "irr" : dev; 
-    
-    const onBtn = document.getElementById(btnPrefix + "_on");
-    const offBtn = document.getElementById(btnPrefix + "_off");
+    const onBtn = document.getElementById(htmlID + "_on");
+    const offBtn = document.getElementById(htmlID + "_off");
     
     if(onBtn) {
+      // Nếu trạng thái là ON, nút Bật sẽ xanh. Nếu là OFF, nút Tắt sẽ đỏ.
       onBtn.className = status ? "cmd-btn active-on" : "cmd-btn";
       offBtn.className = !status ? "cmd-btn active-off" : "cmd-btn";
       onBtn.disabled = offBtn.disabled = (currentMode !== "MANUAL");
@@ -440,4 +445,5 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
