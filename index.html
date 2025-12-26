@@ -407,10 +407,18 @@ function initMQTT() {
 function updateUI(d) {
   document.getElementById("mode_auto").className = currentMode === "AUTO" ? "cmd-btn active-mode" : "cmd-btn";
   document.getElementById("mode_manual").className = currentMode === "MANUAL" ? "cmd-btn active-mode" : "cmd-btn";
-  ["irr", "light", "pump", "cover"].forEach(dev => {
+
+  // SỬA TẠI ĐÂY: Đổi "irr" thành "irrigation" cho đúng với code ESP32
+  ["irrigation", "light", "pump", "cover"].forEach(dev => {
     const status = d[dev] === "ON" || d[dev] === "OPEN";
-    const onBtn = document.getElementById(dev + "_on");
-    const offBtn = document.getElementById(dev + "_off");
+    
+    // Đạt cũng cần sửa ID của nút trong HTML từ "irr_on" thành "irrigation_on" 
+    // HOẶC sửa logic mapping ở đây:
+    let btnPrefix = (dev === "irrigation") ? "irr" : dev; 
+    
+    const onBtn = document.getElementById(btnPrefix + "_on");
+    const offBtn = document.getElementById(btnPrefix + "_off");
+    
     if(onBtn) {
       onBtn.className = status ? "cmd-btn active-on" : "cmd-btn";
       offBtn.className = !status ? "cmd-btn active-off" : "cmd-btn";
@@ -432,3 +440,4 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
