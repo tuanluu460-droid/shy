@@ -34,9 +34,6 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 
-/* =========================================
-   PHẦN THAY ĐỔI: GIAO DIỆN AUTH SIÊU ĐẸP
-   ========================================= */
 #auth-overlay {
   position: fixed; inset: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: center;
@@ -91,9 +88,6 @@ body {
 .switch-text { margin-top: 25px; font-size: 13px; color: #94a3b8; }
 .switch-text span { color: var(--primary); cursor: pointer; font-weight: 800; border-bottom: 1px dashed var(--primary); }
 
-/* =========================================
-   DASHBOARD GIỮ NGUYÊN (CHỈ THÊM ĐÁM MÂY)
-   ========================================= */
 #dashboard { width: 100%; height: 100%; padding: 40px; display: none; flex-direction: column; overflow-y: auto; }
 #dashboard.show { display: flex; animation: fadeIn 0.8s ease; }
 
@@ -114,7 +108,6 @@ header { display: flex; justify-content: space-between; align-items: center; max
 .card:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-5px); }
 .card h3 { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
 
-/* Progress Circle Styles */
 .circle-container { position: relative; width: 120px; height: 120px; margin: 0 auto 15px; }
 .circle-container svg { transform: rotate(-90deg); width: 120px; height: 120px; }
 .circle-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 10; }
@@ -127,7 +120,6 @@ header { display: flex; justify-content: space-between; align-items: center; max
 .lux-stroke { stroke: #f1c40f; filter: drop-shadow(0 0 5px #f1c40f); }
 .dist-stroke { stroke: #9b59b6; filter: drop-shadow(0 0 5px #9b59b6); }
 
-/* Control Buttons */
 .control-group { margin-bottom: 25px; text-align: left; }
 .label-title { font-size: 12px; font-weight: 800; color: #64748b; margin-bottom: 12px; text-transform: uppercase; }
 .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -280,11 +272,68 @@ header { display: flex; justify-content: space-between; align-items: center; max
   </div>
 </div>
 
-<script>
-// --- LOGIC GIỮ NGUYÊN 100% ---
-emailjs.init("34mUWhWLCDzCA4mM2");
-let generatedOTP = null;
+<script type="module">
+// --- FIREBASE INITIALIZATION ---
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
 
+const firebaseConfig = {
+  apiKey: "AIzaSy...", // Tuấn Anh thay apiKey của bạn vào đây
+  databaseURL: "https://vuon-ed758-default-rtdb.asia-southeast1.firebasedatabase.app/",
+  projectId: "vuon-ed758"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// --- AUTH LOGIC (CLOUD) ---
+emailjs.init("34mUWhWLCDzCA4mM2");
+window.generatedOTP = null;
+
+window.handleRegister = async function() {
+  const username = document.getElementById('reg-username').value.trim();
+  const contact = document.getElementById('reg-contact').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const otp = document.getElementById('reg-otp').value;
+
+  if(!username || pass.length < 8 || otp != window.generatedOTP) return alert("Kiểm tra lại thông tin!");
+
+  const dbRef = ref(db);
+  const snapshot = await get(child(dbRef, `users/${username}`));
+  
+  if (snapshot.exists()) return alert("Tài khoản đã tồn tại!");
+
+  set(ref(db, 'users/' + username), { username, contact, pass })
+    .then(() => { alert("Đăng ký thành công!"); location.reload(); });
+}
+
+window.handleLogin = async function() {
+  const iden = document.getElementById('login-identifier').value.trim();
+  const pass = document.getElementById('login-pass').value;
+
+  const dbRef = ref(db);
+  const snapshot = await get(child(dbRef, `users/${iden}`));
+
+  if (snapshot.exists()) {
+    const user = snapshot.val();
+    if (user.pass === pass) {
+      document.getElementById('auth-overlay').classList.add('hide');
+      document.getElementById('dashboard').classList.add('show');
+      initMQTT();
+    } else alert("Mật khẩu không chính xác!");
+  } else alert("Tài khoản không tồn tại trên hệ thống!");
+}
+
+window.handleResetPass = async function() {
+  const email = document.getElementById('forgot-email').value;
+  const otp = document.getElementById('forgot-otp').value;
+  const newP = document.getElementById('new-pass').value;
+  if(otp != window.generatedOTP || newP.length < 8) return alert("Lỗi OTP hoặc mật khẩu!");
+  
+  alert("Vui lòng đăng ký lại tài khoản mới với mật khẩu này!"); toggleAuth('reg');
+}
+
+// --- DASHBOARD LOGIC (MQTT & UI) ---
 function updateProgress(id, value, max) {
   const circle = document.getElementById(id + '_circle');
   if(!circle) return;
@@ -294,29 +343,22 @@ function updateProgress(id, value, max) {
   circle.style.strokeDashoffset = offset;
 }
 
-function togglePassVisibility(inputId) {
+window.togglePassVisibility = function(inputId) {
   const input = document.getElementById(inputId);
   input.type = input.type === "password" ? "text" : "password";
 }
 
-function toggleAuth(type) {
+window.toggleAuth = function(type) {
   ['login-box', 'reg-box', 'forgot-box'].forEach(id => document.getElementById(id).style.display = 'none');
   document.getElementById(type + '-box').style.display = 'block';
 }
 
-function sendOTP(mode) {
-  let email, name;
-  if(mode === 'reg') {
-    email = document.getElementById('reg-contact').value;
-    name = document.getElementById('reg-username').value;
-    if(!email.includes('@')) return alert("Email không hợp lệ!");
-  } else {
-    email = document.getElementById('forgot-email').value;
-    const users = JSON.parse(localStorage.getItem('users') || '[]');
-    if(!users.find(u => u.contact === email)) return alert("Email chưa đăng ký!");
-  }
-  generatedOTP = Math.floor(1000 + Math.random() * 9000);
-  emailjs.send("service_shy", "template_ix9xdr9", { email: email, name: "User", otp: generatedOTP })
+window.sendOTP = function(mode) {
+  let email = (mode === 'reg') ? document.getElementById('reg-contact').value : document.getElementById('forgot-email').value;
+  if(!email.includes('@')) return alert("Email không hợp lệ!");
+  
+  window.generatedOTP = Math.floor(1000 + Math.random() * 9000);
+  emailjs.send("service_shy", "template_ix9xdr9", { email: email, name: "User", otp: window.generatedOTP })
     .then(() => {
       alert("Mã OTP đã được gửi!");
       if(mode === 'reg') document.getElementById('otp-section').style.display = 'block';
@@ -328,44 +370,7 @@ function sendOTP(mode) {
     });
 }
 
-function handleRegister() {
-  const username = document.getElementById('reg-username').value.trim();
-  const contact = document.getElementById('reg-contact').value.trim();
-  const pass = document.getElementById('reg-pass').value;
-  const otp = document.getElementById('reg-otp').value;
-  if(!username || pass.length < 8 || otp != generatedOTP) return alert("Kiểm tra lại thông tin!");
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  if(users.find(u => u.username === username || u.contact === contact)) return alert("Tài khoản đã tồn tại!");
-  users.push({ username, contact, pass });
-  localStorage.setItem('users', JSON.stringify(users));
-  alert("Đăng ký thành công!"); location.reload();
-}
-
-function handleLogin() {
-  const iden = document.getElementById('login-identifier').value.trim();
-  const pass = document.getElementById('login-pass').value;
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  const found = users.find(u => (u.username === iden || u.contact === iden) && u.pass === pass);
-  if(found) {
-    document.getElementById('auth-overlay').classList.add('hide');
-    document.getElementById('dashboard').classList.add('show');
-    initMQTT();
-  } else alert("Thông tin đăng nhập sai!");
-}
-
-function handleResetPass() {
-  const email = document.getElementById('forgot-email').value;
-  const otp = document.getElementById('forgot-otp').value;
-  const newP = document.getElementById('new-pass').value;
-  if(otp != generatedOTP || newP.length < 8) return alert("Lỗi OTP hoặc mật khẩu!");
-  let users = JSON.parse(localStorage.getItem('users') || '[]');
-  let idx = users.findIndex(u => u.contact === email);
-  users[idx].pass = newP;
-  localStorage.setItem('users', JSON.stringify(users));
-  alert("Cập nhật mật khẩu thành công!"); toggleAuth('login');
-}
-
-function handleLogout() { location.reload(); }
+window.handleLogout = function() { location.reload(); }
 
 const MQTT_URL = "wss://8e78060839b64ff580f16575f29219a9.s1.eu.hivemq.cloud:8884/mqtt";
 const mqtt_opt = { clientId: "web_" + Math.random().toString(16).slice(2), username: "esp_garden_web", password: "P@ss123123" };
@@ -399,21 +404,25 @@ function updateUI(d) {
   document.getElementById("mode_manual").className = currentMode === "MANUAL" ? "cmd-btn active-mode" : "cmd-btn";
   ["irr", "light", "pump", "cover"].forEach(dev => {
     const status = d[dev] === "ON" || d[dev] === "OPEN";
-    if(document.getElementById(dev + "_on")) {
-      document.getElementById(dev + "_on").className = status ? "cmd-btn active-on" : "cmd-btn";
-      document.getElementById(dev + "_off").className = !status ? "cmd-btn active-off" : "cmd-btn";
-      document.getElementById(dev + "_on").disabled = document.getElementById(dev + "_off").disabled = (currentMode !== "MANUAL");
+    const onBtn = document.getElementById(dev + "_on");
+    const offBtn = document.getElementById(dev + "_off");
+    if(onBtn) {
+      onBtn.className = status ? "cmd-btn active-on" : "cmd-btn";
+      offBtn.className = !status ? "cmd-btn active-off" : "cmd-btn";
+      onBtn.disabled = offBtn.disabled = (currentMode !== "MANUAL");
     }
   });
 }
 
-function handleMode(cmd) { client.publish("esp_garden/cmd", cmd); }
-function handleBtn(cmd) { if(currentMode === "MANUAL") client.publish("esp_garden/cmd", cmd); }
+window.handleMode = function(cmd) { if(client) client.publish("esp_garden/cmd", cmd); }
+window.handleBtn = function(cmd) { if(currentMode === "MANUAL" && client) client.publish("esp_garden/cmd", cmd); }
 
 setInterval(() => {
   const now = new Date();
-  document.getElementById('live-clock').innerText = now.toLocaleTimeString('vi-VN');
-  document.getElementById('live-date').innerText = now.toLocaleDateString('vi-VN', {weekday:'long', day:'2-digit', month:'2-digit', year:'numeric'});
+  const liveClock = document.getElementById('live-clock');
+  const liveDate = document.getElementById('live-date');
+  if(liveClock) liveClock.innerText = now.toLocaleTimeString('vi-VN');
+  if(liveDate) liveDate.innerText = now.toLocaleDateString('vi-VN', {weekday:'long', day:'2-digit', month:'2-digit', year:'numeric'});
 }, 1000);
 </script>
 </body>
