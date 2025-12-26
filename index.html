@@ -405,32 +405,36 @@ function initMQTT() {
 }
 
 function updateUI(d) {
-  // Ghi nhật ký dữ liệu để Đạt kiểm tra trong F12
-  console.log("Dữ liệu từ ESP32 gửi về:", d);
-
+  // 1. Cập nhật màu cho nút Chế độ (AUTO/MANUAL)
   document.getElementById("mode_auto").className = currentMode === "AUTO" ? "cmd-btn active-mode" : "cmd-btn";
   document.getElementById("mode_manual").className = currentMode === "MANUAL" ? "cmd-btn active-mode" : "cmd-btn";
 
-  // Ánh xạ tên biến ESP32 sang ID trên Web (Sửa lại cho khớp 100% với phần cứng)
+  // 2. Bảng ánh xạ: ÉP tất cả các kiểu tên biến về đúng ID nút "irr" trên Web của Đạt
   const deviceMap = {
-    "irr": "irr",        // Nếu ESP32 gửi là "irr"
-    "irrigation": "irr", // Nếu ESP32 gửi là "irrigation"
+    "irr": "irr", 
+    "irrigation": "irr", // ESP32 gửi "irrigation" -> Web sẽ tìm đúng nút "irr_on"
     "light": "light",
     "pump": "pump",
     "cover": "cover"
   };
 
+  // 3. Quét qua từng thiết bị để cập nhật màu sắc
   Object.keys(deviceMap).forEach(espVar => {
-    if (d[espVar] !== undefined) { // Chỉ xử lý nếu biến này có tồn tại trong dữ liệu gửi về
+    // Nếu biến này có tồn tại trong dữ liệu ESP32 gửi về
+    if (d[espVar] !== undefined) {
       const htmlID = deviceMap[espVar];
-      const status = d[espVar] === "ON" || d[espVar] === "OPEN";
+      // Kiểm tra trạng thái: chấp nhận cả ON, OPEN hoặc số 1
+      const status = (d[espVar] === "ON" || d[espVar] === "OPEN" || d[espVar] === 1);
       
       const onBtn = document.getElementById(htmlID + "_on");
       const offBtn = document.getElementById(htmlID + "_off");
       
       if(onBtn && offBtn) {
+        // Cập nhật màu nút dựa trên trạng thái thực từ phần cứng
         onBtn.className = status ? "cmd-btn active-on" : "cmd-btn";
         offBtn.className = !status ? "cmd-btn active-off" : "cmd-btn";
+        
+        // Khóa nút nếu không ở chế độ Thủ công
         onBtn.disabled = offBtn.disabled = (currentMode !== "MANUAL");
       }
     }
@@ -449,6 +453,7 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
 
 
 
